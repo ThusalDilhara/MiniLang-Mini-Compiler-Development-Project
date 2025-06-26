@@ -8,7 +8,7 @@ public class Main {
       Parser parser = new Parser(tokens);
       parser.parseProgram(); // This alone handles everything now
     } catch (RuntimeException e) {
-      System.out.println("❌ " + e.getMessage());
+      System.out.println(e.getMessage());
     }
   }
 }
