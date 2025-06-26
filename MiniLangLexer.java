@@ -40,15 +40,25 @@ public class MiniLangLexer {
 
     while (matcher.find()) {
       if (matcher.group("KEYWORD") != null) {
-        tokens.add(new Token("KEYWORD", matcher.group("KEYWORD")));
+        String token = matcher.group("KEYWORD");
+        tokens.add(new Token("KEYWORD", token));
+        System.out.println("KEYWORD: " + token);
       } else if (matcher.group("IDENTIFIER") != null) {
-        tokens.add(new Token("IDENTIFIER", matcher.group("IDENTIFIER")));
+        String token = matcher.group("IDENTIFIER");
+        tokens.add(new Token("IDENTIFIER", token));
+        System.out.println("IDENTIFIER: " + token);
       } else if (matcher.group("NUMBER") != null) {
-        tokens.add(new Token("NUMBER", matcher.group("NUMBER")));
+        String token = matcher.group("NUMBER");
+        tokens.add(new Token("NUMBER", token));
+        System.out.println("NUMBER: " + token);
       } else if (matcher.group("OPERATOR") != null) {
-        tokens.add(new Token("OPERATOR", matcher.group("OPERATOR")));
+        String token = matcher.group("OPERATOR");
+        tokens.add(new Token("OPERATOR", token));
+        System.out.println("OPERATOR: " + token);
       } else if (matcher.group("SYMBOL") != null) {
-        tokens.add(new Token("SYMBOL", matcher.group("SYMBOL")));
+        String token = matcher.group("SYMBOL");
+        tokens.add(new Token("SYMBOL", token));
+        System.out.println("SYMBOL: " + token);
       } else if (matcher.group("MISMATCH") != null) {
         System.out.println("ERROR: Unrecognized token '" + matcher.group("MISMATCH") + "'");
       }
@@ -56,4 +66,5 @@ public class MiniLangLexer {
 
     return tokens;
   }
+
 }
