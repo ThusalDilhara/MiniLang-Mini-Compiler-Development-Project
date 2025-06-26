@@ -1,172 +1,165 @@
-import java.util.List;
+import java.util.*;
 
 public class Parser {
   private final List<Token> tokens;
+  private int pos = 0;
   private final SymbolTable symbolTable = new SymbolTable();
-  private int current = 0;
+  private final IntermediateCodeGenerator icg = new IntermediateCodeGenerator();
 
   public Parser(List<Token> tokens) {
     this.tokens = tokens;
   }
 
   public void parseProgram() {
-    while (!isAtEnd()) {
+    while (pos < tokens.size()) {
       parseStatement();
     }
     System.out.println("Parsing + Semantic Analysis successful.");
+    icg.printCode();
   }
 
   private void parseStatement() {
-    if (match("KEYWORD", "int")) {
-      String name = expect("IDENTIFIER").value;
-      symbolTable.declare(name);
+    Token current = peek();
+
+    if (current.type.equals("KEYWORD") && current.value.equals("int")) {
+      advance();
+      Token var = expect("IDENTIFIER", null);
+      symbolTable.declare(var.value);
       expect("SYMBOL", ";");
-    } else if (check("IDENTIFIER")) {
-      String name = peek().value;
-      if (!symbolTable.isDeclared(name)) {
-        error("Undeclared variable: " + name);
+    } else if (current.type.equals("IDENTIFIER")) {
+      Token var = advance();
+      if (!symbolTable.isDeclared(var.value)) {
+        error("Variable '" + var.value + "' not declared");
       }
-      parseAssignment();
-    } else if (match("KEYWORD", "if")) {
+      expect("OPERATOR", "=");
+      String expr = parseExpression();
+      expect("SYMBOL", ";");
+      icg.add(var.value + " = " + expr);
+    } else if (current.type.equals("KEYWORD") && current.value.equals("print")) {
+      advance();
       expect("SYMBOL", "(");
-      parseCondition();
-      expect("SYMBOL", ")");
-      parseBlock();
-      if (match("KEYWORD", "else")) {
-        parseBlock();
-      }
-    } else if (match("KEYWORD", "while")) {
-      expect("SYMBOL", "(");
-      parseCondition();
-      expect("SYMBOL", ")");
-      parseBlock();
-    } else if (match("KEYWORD", "print")) {
-      expect("SYMBOL", "(");
-      String name = expect("IDENTIFIER").value;
-      if (!symbolTable.isDeclared(name)) {
-        error("Undeclared variable in print: " + name);
-      }
+      String expr = parseExpression();
       expect("SYMBOL", ")");
       expect("SYMBOL", ";");
-    } else if (check("SYMBOL", "{")) {
-      parseBlock();
-    } else {
-      error("Unexpected token: " + peek().value);
-    }
-  }
-
-  private void parseAssignment() {
-    expect("IDENTIFIER");
-    expect("OPERATOR", "=");
-    parseExpression();
-    expect("SYMBOL", ";");
-  }
-
-  private void parseBlock() {
-    expect("SYMBOL", "{");
-    while (!check("SYMBOL", "}")) {
-      parseStatement();
-    }
-    expect("SYMBOL", "}");
-  }
-
-  private void parseExpression() {
-    parseTerm();
-    while (match("OPERATOR", "+") || match("OPERATOR", "-")) {
-      parseTerm();
-    }
-  }
-
-  private void parseTerm() {
-    parseFactor();
-    while (match("OPERATOR", "*") || match("OPERATOR", "/")) {
-      parseFactor();
-    }
-  }
-
-  private void parseFactor() {
-    if (match("IDENTIFIER") || match("NUMBER")) {
-      return;
-    } else if (match("SYMBOL", "(")) {
-      parseExpression();
+      icg.add("print " + expr);
+    } else if (current.type.equals("KEYWORD") && current.value.equals("if")) {
+      advance();
+      expect("SYMBOL", "(");
+      String cond = parseBooleanExpression();
       expect("SYMBOL", ")");
-    } else {
-      error("Expected identifier, number, or expression in parentheses");
-    }
-  }
-
-  private void parseCondition() {
-    parseExpression();
-    if (match("OPERATOR", "==") || match("OPERATOR", "!=") || match("OPERATOR", "<")
-        || match("OPERATOR", ">") || match("OPERATOR", "<=") || match("OPERATOR", ">=")) {
-      parseExpression();
-    } else {
-      error("Expected a relational operator in condition");
-    }
-  }
-
-  private boolean match(String type) {
-    if (check(type)) {
+      String l1 = icg.newLabel();
+      String l2 = icg.newLabel();
+      icg.add("if " + cond + " goto " + l1);
+      icg.add("goto " + l2);
+      icg.add(l1 + ":");
+      expect("SYMBOL", "{");
+      while (!peek().value.equals("}"))
+        parseStatement();
+      expect("SYMBOL", "}");
+      if (peek().type.equals("KEYWORD") && peek().value.equals("else")) {
+        String l3 = icg.newLabel();
+        icg.add("goto " + l3);
+        icg.add(l2 + ":");
+        advance();
+        expect("SYMBOL", "{");
+        while (!peek().value.equals("}"))
+          parseStatement();
+        expect("SYMBOL", "}");
+        icg.add(l3 + ":");
+      } else {
+        icg.add(l2 + ":");
+      }
+    } else if (current.type.equals("KEYWORD") && current.value.equals("while")) {
       advance();
-      return true;
+      String start = icg.newLabel();
+      String end = icg.newLabel();
+      icg.add(start + ":");
+      expect("SYMBOL", "(");
+      String cond = parseBooleanExpression();
+      expect("SYMBOL", ")");
+      icg.add("if not " + cond + " goto " + end);
+      expect("SYMBOL", "{");
+      while (!peek().value.equals("}"))
+        parseStatement();
+      expect("SYMBOL", "}");
+      icg.add("goto " + start);
+      icg.add(end + ":");
+    } else {
+      error("Unexpected token: " + current.value);
     }
-    return false;
   }
 
-  private boolean match(String type, String value) {
-    if (check(type, value)) {
-      advance();
-      return true;
+  private String parseBooleanExpression() {
+    String left = parseExpression();
+    if (peek().type.equals("OPERATOR") && Arrays.asList("==", "!=", "<", "<=", ">", ">=").contains(peek().value)) {
+      String op = advance().value;
+      String right = parseExpression();
+      String temp = icg.newTemp();
+      icg.add(temp + " = " + left + " " + op + " " + right);
+      return temp;
     }
-    return false;
+    return left;
   }
 
-  private Token expect(String type) {
-    if (!check(type)) {
-      error("Expected token type: " + type);
+  private String parseExpression() {
+    String term = parseTerm();
+    while (peek().type.equals("OPERATOR") && (peek().value.equals("+") || peek().value.equals("-"))) {
+      String op = advance().value;
+      String next = parseTerm();
+      String temp = icg.newTemp();
+      icg.add(temp + " = " + term + " " + op + " " + next);
+      term = temp;
     }
-    return advance();
+    return term;
   }
 
-  private Token expect(String type, String value) {
-    if (!check(type, value)) {
-      error("Expected token: " + value);
+  private String parseTerm() {
+    String factor = parseFactor();
+    while (peek().type.equals("OPERATOR") && (peek().value.equals("*") || peek().value.equals("/"))) {
+      String op = advance().value;
+      String next = parseFactor();
+      String temp = icg.newTemp();
+      icg.add(temp + " = " + factor + " " + op + " " + next);
+      factor = temp;
     }
-    return advance();
+    return factor;
   }
 
-  private boolean check(String type) {
-    if (isAtEnd())
-      return false;
-    return peek().type.equals(type);
-  }
-
-  private boolean check(String type, String value) {
-    if (isAtEnd())
-      return false;
+  private String parseFactor() {
     Token token = peek();
-    return token.type.equals(type) && token.value.equals(value);
+    if (token.type.equals("NUMBER") || token.type.equals("IDENTIFIER")) {
+      if (token.type.equals("IDENTIFIER") && !symbolTable.isDeclared(token.value)) {
+        error("Variable '" + token.value + "' not declared");
+      }
+      return advance().value;
+    } else if (token.type.equals("SYMBOL") && token.value.equals("(")) {
+      advance();
+      String expr = parseExpression();
+      expect("SYMBOL", ")");
+      return expr;
+    } else {
+      error("Unexpected token in expression: " + token.value);
+      return "";
+    }
   }
 
   private Token peek() {
-    return tokens.get(current);
+    return tokens.get(pos);
   }
 
   private Token advance() {
-    if (!isAtEnd())
-      current++;
-    return previous();
+    return tokens.get(pos++);
   }
 
-  private Token previous() {
-    return tokens.get(current - 1);
-  }
-
-  private boolean isAtEnd() {
-    return current >= tokens.size();
+  private Token expect(String type, String value) {
+    Token token = advance();
+    if (!token.type.equals(type) || (value != null && !token.value.equals(value))) {
+      error("Expected " + (value != null ? value : type) + " but found " + token.value);
+    }
+    return token;
   }
 
   private void error(String message) {
-    throw new RuntimeException("Syntax/Semantic Error: " + message);
+    throw new RuntimeException("PARSE ERROR: " + message);
   }
 }

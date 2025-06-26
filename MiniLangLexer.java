@@ -3,7 +3,6 @@ import java.util.*;
 import java.util.regex.*;
 
 public class MiniLangLexer {
-
   static String[] keywords = { "int", "if", "else", "while", "print" };
   static String[] operators = { "==", "!=", "<=", ">=", "=", "\\+", "-", "\\*", "/", "<", ">" };
   static String[] symbols = { "\\(", "\\)", ";", "\\{", "\\}" };
@@ -33,7 +32,7 @@ public class MiniLangLexer {
         code.append(scanner.nextLine()).append("\n");
       }
     } catch (FileNotFoundException e) {
-      System.out.println("File not found: " + filePath);
+      System.out.println("❌ File not found: " + filePath);
       return tokens;
     }
 
@@ -51,7 +50,7 @@ public class MiniLangLexer {
       } else if (matcher.group("SYMBOL") != null) {
         tokens.add(new Token("SYMBOL", matcher.group("SYMBOL")));
       } else if (matcher.group("MISMATCH") != null) {
-        System.out.println("ERROR: Unrecognized token '" + matcher.group("MISMATCH") + "'");
+        System.out.println("❌ ERROR: Unrecognized token '" + matcher.group("MISMATCH") + "'");
       }
     }
 
